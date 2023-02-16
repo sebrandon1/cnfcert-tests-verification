@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
+if [ $LOCAL_RUN == "true" ]; then
+	echo "Skipping golangci-lint installation. Local run enabled."
+	exit 0
+fi
+
 # shellcheck disable=SC1091 # Not following.
 . "$(dirname "$0")"/common.sh
 

@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if [ $LOCAL_RUN == "true" ]; then
+	echo "Skipping go installation. Local run enabled."
+	exit 0
+fi
+
 LATEST_GO_VERSION=$(curl https://go.dev/VERSION?m=text)
 INSTALLED_GO_VERSION=$(go version | grep -oP "go\d+\.\d+\.\d+")
 

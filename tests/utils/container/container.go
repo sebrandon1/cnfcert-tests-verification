@@ -2,6 +2,7 @@ package container
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"strings"
@@ -9,6 +10,14 @@ import (
 
 // SelectEngine check what container engine is present on the machine.
 func SelectEngine() (string, error) {
+	// If this is a LOCAL_RUN, check to see if the TNF_CONTAINER_CLIENT variable is also set and use that.
+	if os.Getenv("LOCAL_RUN") == "true" {
+		if os.Getenv("TNF_CONTAINER_CLIENT") != "" {
+			return os.Getenv("TNF_CONTAINER_CLIENT"), nil
+		}
+		return "nil", fmt.Errorf("no container Engine present on host machine")
+	}
+
 	for _, containerEngine := range []string{"docker", "podman"} {
 		containerEngineCMD := exec.Command(containerEngine)
 		directoryName, _ := path.Split(containerEngineCMD.Path)

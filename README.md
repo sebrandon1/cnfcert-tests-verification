@@ -36,6 +36,7 @@ Optional:
 * `TNF_LOG_LEVEL` - Log level. Default is 4
 * `TEST_IMAGE` - Test image that is going to be used for all test resources such as deployments, daemonsets and so on. Default is quay.io/testnetworkfunction/cnf-test-partner
 * `DEBUG_TNF` - Generate `Debug` folder that will contain TNF suites folders with TNF logs for each test.
+* `LOCAL_RUN` - Skips some scripts that are not needed for local runs.  Used primarily in development environment.
 
 #### Available features
 The list of available features:

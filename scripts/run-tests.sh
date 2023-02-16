@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -x
+
 GOPATH="${GOPATH:-~/go}"
 export PATH=$PATH:$GOPATH/bin
 EXCLUDED_FOLDERS=""
