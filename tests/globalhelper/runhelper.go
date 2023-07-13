@@ -53,8 +53,10 @@ func LaunchTests(testCaseName string, tcNameForReport string) error {
 			return fmt.Errorf("failed to write to debug file: %w", err)
 		}
 
-		cmd.Stdout = outfile
-		cmd.Stderr = outfile
+		// cmd.Stdout = outfile
+		// cmd.Stderr = outfile
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 	}
 
 	err = cmd.Run()

@@ -66,16 +66,20 @@ var _ = Describe("lifecycle-persistent-volume-reclaim-policy", func() {
 	// 54201
 	It("One deployment, one pod with a volume that uses a reclaim policy of delete", func() {
 
+		By("Define PV")
 		persistentVolume := persistentvolume.DefinePersistentVolume(tsparams.TestPVName, tsparams.LifecycleNamespace)
 		persistentvolume.RedefineWithPVReclaimPolicy(persistentVolume, corev1.PersistentVolumeReclaimDelete)
 
+		By("Create PV")
 		err := tshelper.CreatePersistentVolume(persistentVolume, tsparams.WaitingTime)
 		Expect(err).ToNot(HaveOccurred())
 
 		pvNames = append(pvNames, tsparams.TestPVName)
 
+		By("Define PVC")
 		pvc := persistentvolumeclaim.DefinePersistentVolumeClaim(tsparams.TestPVCName, tsparams.LifecycleNamespace)
 
+		By("Create PVC and wait until it is bound to PV")
 		err = tshelper.CreateAndWaitUntilPVCIsBound(pvc, tsparams.LifecycleNamespace, tsparams.WaitingTime, persistentVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 

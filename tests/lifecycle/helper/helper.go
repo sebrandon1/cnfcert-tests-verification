@@ -88,8 +88,16 @@ func WaitUntilClusterIsStable() error {
 	return nil
 }
 
-func CreatePersistentVolume(pv *corev1.PersistentVolume, timeout time.Duration) error {
-	_, err := globalhelper.GetAPIClient().PersistentVolumes().Create(context.TODO(), pv, metav1.CreateOptions{})
+func CreatePersistentVolume(persistentVolume *corev1.PersistentVolume, timeout time.Duration) error {
+	// Check if the PV already exists
+	_, err := globalhelper.GetAPIClient().PersistentVolumes().Get(context.TODO(), persistentVolume.Name, metav1.GetOptions{})
+	if err == nil {
+		glog.V(5).Info(fmt.Sprintf("persistent volume %s already exists", persistentVolume.Name))
+
+		return nil // PV already exists
+	}
+
+	_, err = globalhelper.GetAPIClient().PersistentVolumes().Create(context.TODO(), persistentVolume, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create persistent volume: %w", err)
 	}
@@ -98,7 +106,8 @@ func CreatePersistentVolume(pv *corev1.PersistentVolume, timeout time.Duration) 
 }
 
 func CreateAndWaitUntilPVCIsBound(pvc *corev1.PersistentVolumeClaim, namespace string, timeout time.Duration, pvName string) error {
-	pvc, err := globalhelper.GetAPIClient().PersistentVolumeClaims(namespace).Create(context.TODO(), pvc, metav1.CreateOptions{})
+	// pvc, err := globalhelper.GetAPIClient().PersistentVolumeClaims(namespace).Create(context.TODO(), pvc, metav1.CreateOptions{})
+	_, err := globalhelper.GetAPIClient().PersistentVolumeClaims(namespace).Create(context.TODO(), pvc, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create persistent volume claim: %w", err)
 	}

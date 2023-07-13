@@ -21,6 +21,38 @@ type resourceSpecs struct {
 	Value     bool   `json:"value"`
 }
 
+// EnsureAllNodesAreLabeled ensures that all nodes are labeled with the given label.
+func EnsureAllNodesAreLabeled(client corev1Typed.CoreV1Interface, label string) error {
+	nodesList, err := client.Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodesList.Items {
+		if _, exists := node.Labels[label]; !exists {
+			err = LabelNode(client, &node, label, "")
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// LabelNode labels a node by a given node name.
+func LabelNode(client corev1Typed.CoreV1Interface, node *corev1.Node, label, value string) error {
+	// Set the label
+	node.Labels[label] = value
+
+	var err error
+
+	_, err = client.Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+
+	return err
+}
+
 // WaitForNodesReady waits for all the nodes to become ready.
 func WaitForNodesReady(clients *client.ClientSet, timeout, interval time.Duration) error {
 	return wait.PollUntilContextTimeout(context.TODO(), interval, timeout, true,
@@ -51,6 +83,28 @@ func IsNodeInCondition(node *corev1.Node, condition corev1.NodeConditionType) bo
 	return false
 }
 
+func UncordonAllNodes(clients *client.ClientSet) error {
+	nodesList, err := clients.Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodesList.Items {
+		if IsNodeInCondition(&node, corev1.NodeReady) {
+			err = UnCordon(clients, node.Name)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func UnCordon(nodes *client.ClientSet, nodeName string) error {
+	return setUnSchedulableValue(nodes, nodeName, false)
+}
+
 // GetNumOfReadyNodesInCluster gets the number of ready nodes in the cluster.
 func GetNumOfReadyNodesInCluster(clients *client.ClientSet) (int32, error) {
 	nodesList, err := clients.Nodes().List(context.TODO(), metav1.ListOptions{})
@@ -67,11 +121,6 @@ func GetNumOfReadyNodesInCluster(clients *client.ClientSet) (int32, error) {
 	}
 
 	return int32(numOfNodesExistsInCluster), nil
-}
-
-// UnCordon removes cordon label from the given node.
-func UnCordon(clients *client.ClientSet, nodeName string) error {
-	return setUnSchedulableValue(clients, nodeName, false)
 }
 
 // setUnSchedulableValue cordones/uncordons a node by a given node name.
@@ -111,37 +160,4 @@ func IsNodeMaster(name string, clients *client.ClientSet) (bool, error) {
 	}
 
 	return false, nil
-}
-
-// EnsureAllNodesAreLabeled ensures that all nodes are labeled with the given label.
-func EnsureAllNodesAreLabeled(client corev1Typed.CoreV1Interface, label string) error {
-	nodesList, err := client.Nodes().List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-
-	for _, node := range nodesList.Items {
-		if _, exists := node.Labels[label]; !exists {
-			// label = strings.ReplaceAll(label, "/", "~1")
-			err = LabelNode(client, &node, label, "")
-
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-// LabelNode labels a node by a given node name.
-func LabelNode(client corev1Typed.CoreV1Interface, node *corev1.Node, label, value string) error {
-	// Set the label
-	node.Labels[label] = value
-
-	var err error
-
-	_, err = client.Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
-
-	return err
 }

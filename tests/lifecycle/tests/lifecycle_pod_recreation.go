@@ -48,6 +48,10 @@ var _ = Describe("lifecycle-pod-recreation", func() {
 		By("Ensure all nodes are labeled with 'worker-cnf' label")
 		err = nodes.EnsureAllNodesAreLabeled(globalhelper.GetAPIClient().CoreV1Interface, configSuite.General.CnfNodeLabel)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Ensure all nodes are uncordoned")
+		err = nodes.UncordonAllNodes(globalhelper.GetAPIClient())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {

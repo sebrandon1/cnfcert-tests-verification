@@ -309,6 +309,24 @@ func CleanInstallPlans(namespace string, clientSet *testclient.ClientSet) error 
 	return nil
 }
 
+func CleanPVs(clientSet *testclient.ClientSet) error {
+	pvList, err := clientSet.CoreV1Interface.PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	for _, pv := range pvList.Items {
+		err = clientSet.CoreV1Interface.PersistentVolumes().Delete(context.TODO(), pv.Name, metav1.DeleteOptions{
+			GracePeriodSeconds: pointer.Int64(0),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to delete PV %w", err)
+		}
+	}
+
+	return nil
+}
+
 func CleanPVCs(namespace string, clientSet *testclient.ClientSet) error {
 	nsExist, err := Exists(namespace, clientSet)
 	if err != nil {
@@ -449,6 +467,11 @@ func Clean(namespace string, clientSet *testclient.ClientSet) error {
 	}
 
 	err = CleanPVCs(namespace, clientSet)
+	if err != nil {
+		return err
+	}
+
+	err = CleanPVs(clientSet)
 	if err != nil {
 		return err
 	}
