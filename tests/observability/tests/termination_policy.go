@@ -5,7 +5,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalhelper"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalparameters"
-	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/namespaces"
 	corev1 "k8s.io/api/core/v1"
 
 	tshelper "github.com/test-network-function/cnfcert-tests-verification/tests/observability/helper"
@@ -13,19 +12,28 @@ import (
 )
 
 var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
-	const tnfTestCaseName = tsparams.TnfTerminationMsgPolicyTcName
 	qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
+	var randomNamespace string
+	var origReportDir string
+	var origTnfConfigDir string
+
 	BeforeEach(func() {
-		By("Clean namespace " + tsparams.TestNamespace + " before each test")
-		err := namespaces.Clean(tsparams.TestNamespace, globalhelper.GetAPIClient())
+		// Create random namespace and keep original report and TNF config directories
+		randomNamespace, origReportDir, origTnfConfigDir = globalhelper.BeforeEachSetupWithRandomNamespace(tsparams.TestNamespace)
+
+		By("Define TNF config file")
+		err := globalhelper.DefineTnfConfig(
+			[]string{randomNamespace},
+			tshelper.GetTnfTargetPodLabelsSlice(),
+			[]string{},
+			[]string{},
+			[]string{tsparams.CrdSuffix1, tsparams.CrdSuffix2})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
-		By("Clean namespace " + tsparams.TestNamespace + " after each test")
-		err := namespaces.Clean(tsparams.TestNamespace, globalhelper.GetAPIClient())
-		Expect(err).ToNot(HaveOccurred())
+		globalhelper.AfterEachCleanupWithRandomNamespace(randomNamespace, origReportDir, origTnfConfigDir, tsparams.CrdDeployTimeoutMins)
 	})
 
 	// Positive #1.
@@ -38,12 +46,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCasePassed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCasePassed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -51,7 +59,7 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 	It("One deployment one pod two containers both with terminationMessagePolicy set to FallbackToLogsOnError", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{
 				corev1.TerminationMessageFallbackToLogsOnError,
 				corev1.TerminationMessageFallbackToLogsOnError,
@@ -60,12 +68,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCasePassed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCasePassed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -75,6 +83,7 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 
 		By("Create deployment in the cluster")
 		daemonSet := tshelper.DefineDaemonSetWithTerminationMsgPolicies(tsparams.TestDaemonSetBaseName,
+			randomNamespace,
 			[]corev1.TerminationMessagePolicy{
 				corev1.TerminationMessageFallbackToLogsOnError,
 				corev1.TerminationMessageFallbackToLogsOnError,
@@ -83,12 +92,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err := globalhelper.CreateAndWaitUntilDaemonSetIsReady(daemonSet, tsparams.DaemonSetDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCasePassed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCasePassed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -97,25 +106,27 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		"all with terminationMessagePolicy set to FallbackToLogsOnError", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{corev1.TerminationMessageFallbackToLogsOnError})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Create statefulset in the cluster")
-		statefulSet := tshelper.DefineStatefulSetWithTerminationMsgPolicies(tsparams.TestStatefulSetBaseName, 1,
+		statefulSet := tshelper.DefineStatefulSetWithTerminationMsgPolicies(tsparams.TestStatefulSetBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{corev1.TerminationMessageFallbackToLogsOnError})
 
 		err = globalhelper.CreateAndWaitUntilStatefulSetIsReady(statefulSet, tsparams.StatefulSetDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCasePassed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCasePassed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -129,12 +140,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).To(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCaseFailed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -152,12 +163,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).To(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCaseFailed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -173,12 +184,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).To(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCaseFailed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -200,12 +211,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err = globalhelper.CreateAndWaitUntilStatefulSetIsReady(statefulSet, tsparams.StatefulSetDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).To(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCaseFailed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -227,12 +238,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err = globalhelper.CreateAndWaitUntilDaemonSetIsReady(daemonSet, tsparams.DaemonSetDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).To(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCaseFailed)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -245,12 +256,12 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, Serial, func() {
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Start TNF " + tnfTestCaseName + " test case")
-		err = globalhelper.LaunchTests(tnfTestCaseName, qeTcFileName)
+		By("Start TNF " + tsparams.TnfTerminationMsgPolicyTcName + " test case")
+		err = globalhelper.LaunchTests(tsparams.TnfTerminationMsgPolicyTcName, qeTcFileName)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Verify test case status in Junit and Claim reports")
-		err = globalhelper.ValidateIfReportsAreValid(tnfTestCaseName, globalparameters.TestCaseSkipped)
+		err = globalhelper.ValidateIfReportsAreValid(tsparams.TnfTerminationMsgPolicyTcName, globalparameters.TestCaseSkipped)
 		Expect(err).ToNot(HaveOccurred())
 	})
 })
