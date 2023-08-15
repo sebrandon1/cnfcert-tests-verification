@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -15,16 +17,42 @@ import (
 var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 	const tnfTestCaseName = tsparams.TnfContainerLoggingTcName
 
+	var randomNamespace string
+	var origReportDir string
+
 	BeforeEach(func() {
-		By("Clean namespace " + tsparams.TestNamespace + " before each test")
-		err := namespaces.Clean(tsparams.TestNamespace, globalhelper.GetAPIClient())
+		randomNamespace = tsparams.TestNamespace + "-" + globalhelper.GenerateRandomString(10)
+
+		By(fmt.Sprintf("Create %s namespace", randomNamespace))
+		err := namespaces.Create(randomNamespace, globalhelper.GetAPIClient())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Override default report directory")
+		origReportDir = globalhelper.GetConfiguration().General.TnfReportDir
+		reportDir := origReportDir + "/" + randomNamespace
+		globalhelper.OverrideReportDir(reportDir)
+
+		By("Define TNF config file")
+		err = globalhelper.DefineTnfConfig(
+			[]string{randomNamespace},
+			tshelper.GetTnfTargetPodLabelsSlice(),
+			[]string{},
+			[]string{},
+			[]string{tsparams.CrdSuffix1, tsparams.CrdSuffix2})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
-		By("Clean namespace " + tsparams.TestNamespace + " after each test")
-		err := namespaces.Clean(tsparams.TestNamespace, globalhelper.GetAPIClient())
+		By(fmt.Sprintf("Remove %s namespace", randomNamespace))
+		err := namespaces.DeleteAndWait(
+			globalhelper.GetAPIClient().CoreV1Interface,
+			randomNamespace,
+			tsparams.NsResourcesDeleteTimeoutMins,
+		)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Restore default report directory")
+		globalhelper.GetConfiguration().General.TnfReportDir = origReportDir
 	})
 
 	// 51747
@@ -33,7 +61,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.TwoLogLines})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -55,7 +83,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.OneLogLine})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -77,7 +105,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.TwoLogLines, tsparams.TwoLogLines})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -99,7 +127,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Deploy daemonset in the cluster")
 		daemonSet := tshelper.DefineDaemonSetWithStdoutBuffers(
-			tsparams.TestDaemonSetBaseName,
+			tsparams.TestDaemonSetBaseName, randomNamespace,
 			[]string{tsparams.TwoLogLines, tsparams.OneLogLine})
 
 		err := globalhelper.CreateAndWaitUntilDaemonSetIsReady(daemonSet,
@@ -121,7 +149,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment1 in the cluster")
 		deployment1 := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName+"1", 2,
+			tsparams.TestDeploymentBaseName+"1", randomNamespace, 2,
 			[]string{tsparams.OneLogLine, tsparams.OneLogLine})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment1,
@@ -130,7 +158,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment2 in the cluster")
 		deployment2 := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName+"2", 2,
+			tsparams.TestDeploymentBaseName+"2", randomNamespace, 2,
 			[]string{tsparams.OneLogLine, tsparams.OneLogLine})
 
 		err = globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment2,
@@ -153,7 +181,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.OneLogLine})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -162,7 +190,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create statefulset in the cluster")
 		statefulset := tshelper.DefineStatefulSetWithStdoutBuffers(
-			tsparams.TestStatefulSetBaseName, 1,
+			tsparams.TestStatefulSetBaseName, randomNamespace, 1,
 			[]string{tsparams.OneLogLine})
 
 		err = globalhelper.CreateAndWaitUntilStatefulSetIsReady(statefulset,
@@ -184,7 +212,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create pod in the cluster")
 		pod := tshelper.DefinePodWithStdoutBuffer(
-			tsparams.TestPodBaseName, tsparams.OneLogLine)
+			tsparams.TestPodBaseName, randomNamespace, tsparams.OneLogLine)
 
 		err := globalhelper.CreateAndWaitUntilPodIsReady(pod, tsparams.PodDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
@@ -203,7 +231,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 		qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
 		By("Create pod in the cluster")
-		pod := tshelper.DefinePodWithStdoutBuffer(tsparams.TestPodBaseName,
+		pod := tshelper.DefinePodWithStdoutBuffer(tsparams.TestPodBaseName, randomNamespace,
 			"\t"+tsparams.OneLogLine)
 
 		err := globalhelper.CreateAndWaitUntilPodIsReady(pod, tsparams.PodDeployTimeoutMins)
@@ -224,7 +252,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.NoLogLines})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -246,7 +274,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.OneLogLine, tsparams.NoLogLines})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -268,7 +296,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment1 in the cluster whose containers print one line to stdout each")
 		deployment1 := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName+"1", 1,
+			tsparams.TestDeploymentBaseName+"1", randomNamespace, 1,
 			[]string{tsparams.OneLogLine, tsparams.OneLogLine})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment1,
@@ -277,7 +305,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment2 in the cluster but only the first of its containers prints a line to stdout")
 		deployment2 := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName+"2", 1,
+			tsparams.TestDeploymentBaseName+"2", randomNamespace, 1,
 			[]string{tsparams.OneLogLine, tsparams.NoLogLines})
 
 		err = globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment2,
@@ -298,7 +326,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 		qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
 		By("Create pod in the cluster")
-		pod := tshelper.DefinePodWithStdoutBuffer(tsparams.TestPodBaseName,
+		pod := tshelper.DefinePodWithStdoutBuffer(tsparams.TestPodBaseName, randomNamespace,
 			tsparams.NoLogLines)
 
 		err := globalhelper.CreateAndWaitUntilPodIsReady(pod, tsparams.PodDeployTimeoutMins)
@@ -320,7 +348,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.OneLogLine})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -329,7 +357,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Deploy statefulset in the cluster")
 		statefulset := tshelper.DefineStatefulSetWithStdoutBuffers(
-			tsparams.TestStatefulSetBaseName, 1,
+			tsparams.TestStatefulSetBaseName, randomNamespace, 1,
 			[]string{tsparams.NoLogLines})
 
 		err = globalhelper.CreateAndWaitUntilStatefulSetIsReady(statefulset,
@@ -351,7 +379,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.OneLogLineWithoutNewLine})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -374,7 +402,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment in the cluster")
 		deployment := tshelper.DefineDeploymentWithStdoutBuffers(
-			tsparams.TestDeploymentBaseName, 1,
+			tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]string{tsparams.OneLogLine, tsparams.OneLogLineWithoutNewLine})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
@@ -396,7 +424,7 @@ var _ = Describe(tsparams.TnfContainerLoggingTcName, func() {
 
 		By("Create deployment without TNF target labels in the cluster")
 		deployment := tshelper.DefineDeploymentWithoutTargetLabels(
-			tsparams.TestDeploymentBaseName)
+			tsparams.TestDeploymentBaseName, randomNamespace)
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment,
 			tsparams.DeploymentDeployTimeoutMins)

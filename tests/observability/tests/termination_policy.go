@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalhelper"
@@ -16,23 +18,49 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 	const tnfTestCaseName = tsparams.TnfTerminationMsgPolicyTcName
 	qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
+	var randomNamespace string
+	var origReportDir string
+
 	BeforeEach(func() {
-		By("Clean namespace " + tsparams.TestNamespace + " before each test")
-		err := namespaces.Clean(tsparams.TestNamespace, globalhelper.GetAPIClient())
+		randomNamespace = tsparams.TestNamespace + "-" + globalhelper.GenerateRandomString(10)
+
+		By(fmt.Sprintf("Create %s namespace", randomNamespace))
+		err := namespaces.Create(randomNamespace, globalhelper.GetAPIClient())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Override default report directory")
+		origReportDir = globalhelper.GetConfiguration().General.TnfReportDir
+		reportDir := origReportDir + "/" + randomNamespace
+		globalhelper.OverrideReportDir(reportDir)
+
+		By("Define TNF config file")
+		err = globalhelper.DefineTnfConfig(
+			[]string{randomNamespace},
+			tshelper.GetTnfTargetPodLabelsSlice(),
+			[]string{},
+			[]string{},
+			[]string{tsparams.CrdSuffix1, tsparams.CrdSuffix2})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
-		By("Clean namespace " + tsparams.TestNamespace + " after each test")
-		err := namespaces.Clean(tsparams.TestNamespace, globalhelper.GetAPIClient())
+		By(fmt.Sprintf("Remove %s namespace", randomNamespace))
+		err := namespaces.DeleteAndWait(
+			globalhelper.GetAPIClient().CoreV1Interface,
+			randomNamespace,
+			tsparams.NsResourcesDeleteTimeoutMins,
+		)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Restore default report directory")
+		globalhelper.GetConfiguration().General.TnfReportDir = origReportDir
 	})
 
 	// Positive #1.
 	It("One deployment one pod one container with terminationMessagePolicy set to FallbackToLogsOnError", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{corev1.TerminationMessageFallbackToLogsOnError})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
@@ -51,7 +79,8 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 	It("One deployment one pod two containers both with terminationMessagePolicy set to FallbackToLogsOnError", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{
 				corev1.TerminationMessageFallbackToLogsOnError,
 				corev1.TerminationMessageFallbackToLogsOnError,
@@ -75,6 +104,7 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 
 		By("Create deployment in the cluster")
 		daemonSet := tshelper.DefineDaemonSetWithTerminationMsgPolicies(tsparams.TestDaemonSetBaseName,
+			randomNamespace,
 			[]corev1.TerminationMessagePolicy{
 				corev1.TerminationMessageFallbackToLogsOnError,
 				corev1.TerminationMessageFallbackToLogsOnError,
@@ -97,14 +127,16 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 		"all with terminationMessagePolicy set to FallbackToLogsOnError", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{corev1.TerminationMessageFallbackToLogsOnError})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Create statefulset in the cluster")
-		statefulSet := tshelper.DefineStatefulSetWithTerminationMsgPolicies(tsparams.TestStatefulSetBaseName, 1,
+		statefulSet := tshelper.DefineStatefulSetWithTerminationMsgPolicies(tsparams.TestStatefulSetBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{corev1.TerminationMessageFallbackToLogsOnError})
 
 		err = globalhelper.CreateAndWaitUntilStatefulSetIsReady(statefulSet, tsparams.StatefulSetDeployTimeoutMins)
@@ -123,7 +155,8 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 	It("One deployment one pod one container without terminationMessagePolicy [negative]", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{tsparams.UseDefaultTerminationMsgPolicy})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
@@ -143,7 +176,8 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 		"set to FallbackToLogsOnError [negative]", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{
 				tsparams.UseDefaultTerminationMsgPolicy,
 				corev1.TerminationMessageFallbackToLogsOnError,
@@ -165,7 +199,8 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 	It("One deployment with two pods with one container each without terminationMessagePolicy set [negative]", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 2,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName,
+			randomNamespace, 2,
 			[]corev1.TerminationMessagePolicy{
 				tsparams.UseDefaultTerminationMsgPolicy,
 			})
@@ -187,14 +222,16 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 		"only the deployment has terminationMessagePolicy set to FallbackToLogsOnError [negative]", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{corev1.TerminationMessageFallbackToLogsOnError})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Create statefulset in the cluster")
-		statefulSet := tshelper.DefineStatefulSetWithTerminationMsgPolicies(tsparams.TestStatefulSetBaseName, 1,
+		statefulSet := tshelper.DefineStatefulSetWithTerminationMsgPolicies(tsparams.TestStatefulSetBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{tsparams.UseDefaultTerminationMsgPolicy})
 
 		err = globalhelper.CreateAndWaitUntilStatefulSetIsReady(statefulSet, tsparams.StatefulSetDeployTimeoutMins)
@@ -214,7 +251,8 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 		"only the deployment has terminationMessagePolicy set to FallbackToLogsOnError [negative]", func() {
 
 		By("Create deployment in the cluster")
-		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName, 1,
+		deployment := tshelper.DefineDeploymentWithTerminationMsgPolicies(tsparams.TestDeploymentBaseName,
+			randomNamespace, 1,
 			[]corev1.TerminationMessagePolicy{corev1.TerminationMessageFallbackToLogsOnError})
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
@@ -222,6 +260,7 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 
 		By("Create daemonset in the cluster")
 		daemonSet := tshelper.DefineDaemonSetWithTerminationMsgPolicies(tsparams.TestDaemonSetBaseName,
+			randomNamespace,
 			[]corev1.TerminationMessagePolicy{tsparams.UseDefaultTerminationMsgPolicy})
 
 		err = globalhelper.CreateAndWaitUntilDaemonSetIsReady(daemonSet, tsparams.DaemonSetDeployTimeoutMins)
@@ -240,7 +279,7 @@ var _ = Describe(tsparams.TnfTerminationMsgPolicyTcName, func() {
 	It("One deployment with one pod and one container without TNF target labels [skip]", func() {
 
 		By("Create deployment without TNF target labels in the cluster")
-		deployment := tshelper.DefineDeploymentWithoutTargetLabels(tsparams.TestDeploymentBaseName)
+		deployment := tshelper.DefineDeploymentWithoutTargetLabels(tsparams.TestDeploymentBaseName, randomNamespace)
 
 		err := globalhelper.CreateAndWaitUntilDeploymentIsReady(deployment, tsparams.DeploymentDeployTimeoutMins)
 		Expect(err).ToNot(HaveOccurred())

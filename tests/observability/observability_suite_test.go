@@ -4,7 +4,6 @@ package observability
 
 import (
 	"flag"
-	"fmt"
 	"runtime"
 	"testing"
 
@@ -13,10 +12,6 @@ import (
 
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalhelper"
 	_ "github.com/test-network-function/cnfcert-tests-verification/tests/observability/tests"
-	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/namespaces"
-
-	tshelper "github.com/test-network-function/cnfcert-tests-verification/tests/observability/helper"
-	tsparams "github.com/test-network-function/cnfcert-tests-verification/tests/observability/parameters"
 )
 
 func TestObservability(t *testing.T) {
@@ -28,35 +23,10 @@ func TestObservability(t *testing.T) {
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "CNFCert observability tests", reporterConfig)
+
+	AfterAll(func() {
+		By("Remove reports from reports directory")
+		err := globalhelper.RemoveContentsFromReportDir()
+		Expect(err).ToNot(HaveOccurred())
+	})
 }
-
-var _ = BeforeSuite(func() {
-
-	By(fmt.Sprintf("Create %s namespace", tsparams.TestNamespace))
-	err := namespaces.Create(tsparams.TestNamespace, globalhelper.GetAPIClient())
-	Expect(err).ToNot(HaveOccurred())
-
-	By("Define TNF config file")
-	err = globalhelper.DefineTnfConfig(
-		[]string{tsparams.TestNamespace},
-		tshelper.GetTnfTargetPodLabelsSlice(),
-		[]string{},
-		[]string{},
-		[]string{tsparams.CrdSuffix1, tsparams.CrdSuffix2})
-	Expect(err).ToNot(HaveOccurred())
-})
-
-var _ = AfterSuite(func() {
-
-	By(fmt.Sprintf("Remove %s namespace", tsparams.TestNamespace))
-	err := namespaces.DeleteAndWait(
-		globalhelper.GetAPIClient().CoreV1Interface,
-		tsparams.TestNamespace,
-		tsparams.NsResourcesDeleteTimeoutMins,
-	)
-	Expect(err).ToNot(HaveOccurred())
-
-	By("Remove reports from reports directory")
-	err = globalhelper.RemoveContentsFromReportDir()
-	Expect(err).ToNot(HaveOccurred())
-})

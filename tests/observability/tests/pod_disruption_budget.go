@@ -1,10 +1,13 @@
 package tests
 
 import (
+	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalhelper"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalparameters"
+	tshelper "github.com/test-network-function/cnfcert-tests-verification/tests/observability/helper"
 	tsparams "github.com/test-network-function/cnfcert-tests-verification/tests/observability/parameters"
 
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/deployment"
@@ -16,16 +19,42 @@ import (
 
 var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 
+	var randomNamespace string
+	var origReportDir string
+
 	BeforeEach(func() {
-		By("Clean namespace before each test")
-		err := namespaces.Clean(tsparams.TestNamespace, globalhelper.GetAPIClient())
+		randomNamespace = tsparams.TestNamespace + "-" + globalhelper.GenerateRandomString(10)
+
+		By(fmt.Sprintf("Create %s namespace", randomNamespace))
+		err := namespaces.Create(randomNamespace, globalhelper.GetAPIClient())
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Override default report directory")
+		origReportDir = globalhelper.GetConfiguration().General.TnfReportDir
+		reportDir := origReportDir + "/" + randomNamespace
+		globalhelper.OverrideReportDir(reportDir)
+
+		By("Define TNF config file")
+		err = globalhelper.DefineTnfConfig(
+			[]string{randomNamespace},
+			tshelper.GetTnfTargetPodLabelsSlice(),
+			[]string{},
+			[]string{},
+			[]string{tsparams.CrdSuffix1, tsparams.CrdSuffix2})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
-		By("Clean namespace after each test")
-		err := namespaces.Clean(tsparams.TestNamespace, globalhelper.GetAPIClient())
+		By(fmt.Sprintf("Remove %s namespace", randomNamespace))
+		err := namespaces.DeleteAndWait(
+			globalhelper.GetAPIClient().CoreV1Interface,
+			randomNamespace,
+			tsparams.NsResourcesDeleteTimeoutMins,
+		)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Restore default report directory")
+		globalhelper.GetConfiguration().General.TnfReportDir = origReportDir
 	})
 
 	const tnfTestCaseName = tsparams.TnfPodDisruptionBudgetTcName
@@ -35,7 +64,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
 		By("Create deployment")
-		dep := deployment.DefineDeployment(tsparams.TestDeploymentBaseName, tsparams.TestNamespace,
+		dep := deployment.DefineDeployment(tsparams.TestDeploymentBaseName, randomNamespace,
 			globalhelper.GetConfiguration().General.TestImage, tsparams.TnfTargetPodLabels)
 
 		deployment.RedefineWithReplicaNumber(dep, 1)
@@ -44,7 +73,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Create pod disruption budget")
-		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMinAvailable(tsparams.TestPdbBaseName, tsparams.TestNamespace,
+		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMinAvailable(tsparams.TestPdbBaseName, randomNamespace,
 			intstr.FromInt(1), tsparams.TnfTargetPodLabels)
 
 		err = globalhelper.CreatePodDisruptionBudget(pdb, tsparams.PdbDeployTimeoutMins)
@@ -64,7 +93,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
 		By("Create deployment")
-		dep := deployment.DefineDeployment(tsparams.TestDeploymentBaseName, tsparams.TestNamespace,
+		dep := deployment.DefineDeployment(tsparams.TestDeploymentBaseName, randomNamespace,
 			globalhelper.GetConfiguration().General.TestImage, tsparams.TnfTargetPodLabels)
 
 		deployment.RedefineWithReplicaNumber(dep, 2)
@@ -73,7 +102,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Create pod disruption budget")
-		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMaxUnAvailable(tsparams.TestPdbBaseName, tsparams.TestNamespace,
+		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMaxUnAvailable(tsparams.TestPdbBaseName, randomNamespace,
 			intstr.FromInt(1), tsparams.TnfTargetPodLabels)
 
 		err = globalhelper.CreatePodDisruptionBudget(pdb, tsparams.PdbDeployTimeoutMins)
@@ -93,7 +122,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
 		By("Create statefulSet")
-		sf := statefulset.DefineStatefulSet(tsparams.TestStatefulSetBaseName, tsparams.TestNamespace,
+		sf := statefulset.DefineStatefulSet(tsparams.TestStatefulSetBaseName, randomNamespace,
 			globalhelper.GetConfiguration().General.TestImage, tsparams.TnfTargetPodLabels)
 
 		statefulset.RedefineWithReplicaNumber(sf, 1)
@@ -102,7 +131,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Create pod disruption budget")
-		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMinAvailable(tsparams.TestPdbBaseName, tsparams.TestNamespace,
+		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMinAvailable(tsparams.TestPdbBaseName, randomNamespace,
 			intstr.FromInt(0), tsparams.TnfTargetPodLabels)
 
 		err = globalhelper.CreatePodDisruptionBudget(pdb, tsparams.PdbDeployTimeoutMins)
@@ -122,7 +151,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
 		By("Create deployment")
-		dep := deployment.DefineDeployment(tsparams.TestDeploymentBaseName, tsparams.TestNamespace,
+		dep := deployment.DefineDeployment(tsparams.TestDeploymentBaseName, randomNamespace,
 			globalhelper.GetConfiguration().General.TestImage, tsparams.TnfTargetPodLabels)
 
 		deployment.RedefineWithReplicaNumber(dep, 2)
@@ -131,7 +160,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Create pod disruption budget")
-		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMaxUnAvailable(tsparams.TestPdbBaseName, tsparams.TestNamespace,
+		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMaxUnAvailable(tsparams.TestPdbBaseName, randomNamespace,
 			intstr.FromInt(2), tsparams.TnfTargetPodLabels)
 
 		err = globalhelper.CreatePodDisruptionBudget(pdb, tsparams.PdbDeployTimeoutMins)
@@ -151,7 +180,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		qeTcFileName := globalhelper.ConvertSpecNameToFileName(CurrentSpecReport().FullText())
 
 		By("Create deployment")
-		dep := deployment.DefineDeployment(tsparams.TestDeploymentBaseName, tsparams.TestNamespace,
+		dep := deployment.DefineDeployment(tsparams.TestDeploymentBaseName, randomNamespace,
 			globalhelper.GetConfiguration().General.TestImage, tsparams.TnfTargetPodLabels)
 
 		deployment.RedefineWithReplicaNumber(dep, 2)
@@ -160,7 +189,7 @@ var _ = Describe(tsparams.TnfPodDisruptionBudgetTcName, func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Create pod disruption budget")
-		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMaxUnAvailable(tsparams.TestPdbBaseName, tsparams.TestNamespace,
+		pdb := poddisruptionbudget.DefinePodDisruptionBudgetMaxUnAvailable(tsparams.TestPdbBaseName, randomNamespace,
 			intstr.FromInt(3), tsparams.TnfTargetPodLabels)
 
 		err = globalhelper.CreatePodDisruptionBudget(pdb, tsparams.PdbDeployTimeoutMins)
