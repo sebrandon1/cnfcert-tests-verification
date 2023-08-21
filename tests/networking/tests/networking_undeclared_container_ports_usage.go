@@ -2,7 +2,6 @@ package tests
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo/v2"
@@ -11,7 +10,6 @@ import (
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalparameters"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/config"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/deployment"
-	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/execute"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/namespaces"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/nodes"
 	corev1 "k8s.io/api/core/v1"
@@ -27,21 +25,28 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 		glog.Fatal(fmt.Errorf("can not load config file: %w", err))
 	}
 
-	execute.BeforeAll(func() {
-		By("Clean namespace before all tests")
-		err := namespaces.Clean(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
-		Expect(err).ToNot(HaveOccurred())
-		err = os.Setenv(globalparameters.PartnerNamespaceEnvVarName, tsparams.TestNetworkingNameSpace)
-		Expect(err).ToNot(HaveOccurred())
-	})
+	var randomNamespace string
+	var origReportDir string
 
 	BeforeEach(func() {
-		By("Clean namespace before each test")
-		err := namespaces.Clean(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
+		randomNamespace = tsparams.TestNetworkingNameSpace + "-" + globalhelper.GenerateRandomString(10)
+
+		By(fmt.Sprintf("Create %s namespace", randomNamespace))
+		err := namespaces.Create(randomNamespace, globalhelper.GetAPIClient())
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Remove reports from report directory")
-		err = globalhelper.RemoveContentsFromReportDir()
+		By("Override default report directory")
+		origReportDir = globalhelper.GetConfiguration().General.TnfReportDir
+		reportDir := origReportDir + "/" + randomNamespace
+		globalhelper.OverrideReportDir(reportDir)
+
+		By("Define TNF config file")
+		err = globalhelper.DefineTnfConfig(
+			[]string{randomNamespace},
+			[]string{tsparams.TestPodLabel},
+			[]string{},
+			[]string{},
+			[]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Ensure all nodes are labeled with 'worker-cnf' label")
@@ -49,10 +54,24 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	AfterEach(func() {
+		By("Remove networking test namespaces")
+		err := namespaces.DeleteAndWait(
+			globalhelper.GetAPIClient().CoreV1Interface,
+			randomNamespace,
+			tsparams.WaitingTime,
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Restore default report directory")
+		globalhelper.GetConfiguration().General.TnfReportDir = origReportDir
+	})
+
 	It("one deployment, one pod, container declares and uses port 8080", func() {
 
 		By("Define deployment and create it on cluster")
-		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", 1, []corev1.ContainerPort{{ContainerPort: 8080}})
+		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", randomNamespace, 1,
+			[]corev1.ContainerPort{{ContainerPort: 8080}})
 		Expect(err).ToNot(HaveOccurred())
 		err = deployment.RedefineContainerCommand(dep, 0, []string{})
 		Expect(err).ToNot(HaveOccurred())
@@ -77,7 +96,8 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 	It("one deployment, one pod, container declares port 8081 but does not use any", func() {
 
 		By("Define deployment and create it on cluster")
-		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", 1, []corev1.ContainerPort{{ContainerPort: 8081}})
+		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", randomNamespace, 1,
+			[]corev1.ContainerPort{{ContainerPort: 8081}})
 		Expect(err).ToNot(HaveOccurred())
 
 		err = globalhelper.CreateAndWaitUntilDeploymentIsReady(dep, tsparams.WaitingTime)
@@ -100,7 +120,8 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 	It("one deployment, one pod, container declares port 8081 but uses port 8080 instead [negative]", func() {
 
 		By("Define deployment and create it on cluster")
-		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", 1, []corev1.ContainerPort{{ContainerPort: 8081}})
+		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", randomNamespace, 1,
+			[]corev1.ContainerPort{{ContainerPort: 8081}})
 		Expect(err).ToNot(HaveOccurred())
 		err = deployment.RedefineContainerCommand(dep, 0, []string{})
 		Expect(err).ToNot(HaveOccurred())
@@ -119,13 +140,12 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 			tsparams.TnfUndeclaredContainerPortsUsageTcName,
 			globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
-
 	})
 
 	It("one deployment, one pod, container uses port 8080 but does not declare any [negative]", func() {
 
 		By("Define deployment and create it on cluster")
-		dep, err := tshelper.DefineDeploymentWithContainers(1, 1, "networking-deployment")
+		dep, err := tshelper.DefineDeploymentWithContainers(1, 1, "networking-deployment", randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 		err = deployment.RedefineContainerCommand(dep, 0, []string{})
 		Expect(err).ToNot(HaveOccurred())
@@ -144,14 +164,13 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 			tsparams.TnfUndeclaredContainerPortsUsageTcName,
 			globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
-
 	})
 
 	It("one deployment, one pod, two containers, both containers declare used ports (8080, 8081)", func() {
 
 		By("Define deployment and create it on cluster")
 		ports := []corev1.ContainerPort{{ContainerPort: 8080}, {ContainerPort: 8081}}
-		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", 1, ports)
+		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", randomNamespace, 1, ports)
 		Expect(err).ToNot(HaveOccurred())
 		err = deployment.RedefineContainerCommand(dep, 0, []string{})
 		Expect(err).ToNot(HaveOccurred())
@@ -174,7 +193,6 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 			tsparams.TnfUndeclaredContainerPortsUsageTcName,
 			globalparameters.TestCasePassed)
 		Expect(err).ToNot(HaveOccurred())
-
 	})
 
 	//nolint:lll
@@ -182,7 +200,7 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 
 		By("Define deployment and create it on cluster")
 		ports := []corev1.ContainerPort{{ContainerPort: 8080}, {ContainerPort: 8082}}
-		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", 2, ports)
+		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", randomNamespace, 2, ports)
 		Expect(err).ToNot(HaveOccurred())
 		err = deployment.RedefineContainerCommand(dep, 0, []string{})
 		Expect(err).ToNot(HaveOccurred())
@@ -205,13 +223,12 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 			tsparams.TnfUndeclaredContainerPortsUsageTcName,
 			globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
-
 	})
 
 	It("one deployment, one pod, two containers, the second container uses port 8080 but does not declare any [negative]", func() {
 
 		By("Define deployment and create it on cluster")
-		dep, err := tshelper.DefineDeploymentWithContainers(1, 2, "networking-deployment")
+		dep, err := tshelper.DefineDeploymentWithContainers(1, 2, "networking-deployment", randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 		err = deployment.RedefineContainerCommand(dep, 1, []string{})
 		Expect(err).ToNot(HaveOccurred())
@@ -230,7 +247,5 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 			tsparams.TnfUndeclaredContainerPortsUsageTcName,
 			globalparameters.TestCaseFailed)
 		Expect(err).ToNot(HaveOccurred())
-
 	})
-
 })

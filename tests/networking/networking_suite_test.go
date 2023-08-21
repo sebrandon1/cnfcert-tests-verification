@@ -4,7 +4,6 @@ package networking
 
 import (
 	"flag"
-	"fmt"
 	"runtime"
 	"testing"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalhelper"
 	_ "github.com/test-network-function/cnfcert-tests-verification/tests/networking/tests"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/cluster"
-	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/namespaces"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/nodes"
 
 	tsparams "github.com/test-network-function/cnfcert-tests-verification/tests/networking/parameters"
@@ -46,19 +44,6 @@ var _ = BeforeSuite(func() {
 	err := nodes.WaitForNodesReady(globalhelper.GetAPIClient(), tsparams.WaitingTime, tsparams.RetryInterval)
 	Expect(err).ToNot(HaveOccurred())
 
-	By(fmt.Sprintf("Create %s namespace", tsparams.TestNetworkingNameSpace))
-	err = namespaces.Create(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
-	Expect(err).ToNot(HaveOccurred())
-
-	By("Define TNF config file")
-	err = globalhelper.DefineTnfConfig(
-		[]string{tsparams.TestNetworkingNameSpace},
-		[]string{tsparams.TestPodLabel},
-		[]string{},
-		[]string{},
-		[]string{})
-	Expect(err).ToNot(HaveOccurred())
-
 	By("Set rbac policy which allows authenticated users to run privileged containers")
 	err = globalhelper.AllowAuthenticatedUsersRunPrivilegedContainers()
 	Expect(err).ToNot(HaveOccurred())
@@ -66,22 +51,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	By("Remove networking test namespaces")
-	err := namespaces.DeleteAndWait(
-		globalhelper.GetAPIClient().CoreV1Interface,
-		tsparams.TestNetworkingNameSpace,
-		tsparams.WaitingTime,
-	)
-	Expect(err).ToNot(HaveOccurred())
-
-	err = namespaces.DeleteAndWait(
-		globalhelper.GetAPIClient().CoreV1Interface,
-		tsparams.AdditionalNetworkingNamespace,
-		tsparams.WaitingTime,
-	)
-	Expect(err).ToNot(HaveOccurred())
-
 	By("Remove reports from report directory")
-	err = globalhelper.RemoveContentsFromReportDir()
+	err := globalhelper.RemoveContentsFromReportDir()
 	Expect(err).ToNot(HaveOccurred())
 })

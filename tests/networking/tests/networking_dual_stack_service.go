@@ -2,7 +2,6 @@ package tests
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/golang/glog"
 	. "github.com/onsi/ginkgo/v2"
@@ -10,7 +9,6 @@ import (
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalhelper"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/globalparameters"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/config"
-	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/execute"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/namespaces"
 	"github.com/test-network-function/cnfcert-tests-verification/tests/utils/nodes"
 	corev1 "k8s.io/api/core/v1"
@@ -26,25 +24,20 @@ var _ = Describe("Networking dual-stack-service,", func() {
 		glog.Fatal(fmt.Errorf("can not load config file: %w", err))
 	}
 
-	execute.BeforeAll(func() {
-		By("Clean namespace before all tests")
-		err := namespaces.Clean(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
-		Expect(err).ToNot(HaveOccurred())
-		err = os.Setenv(globalparameters.PartnerNamespaceEnvVarName, tsparams.TestNetworkingNameSpace)
-		Expect(err).ToNot(HaveOccurred())
-	})
+	var randomNamespace string
+	var origReportDir string
 
 	BeforeEach(func() {
-		By("Clean namespaces before each test")
-		err := namespaces.Clean(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
+		randomNamespace = tsparams.TestNetworkingNameSpace + "-" + globalhelper.GenerateRandomString(10)
+
+		By(fmt.Sprintf("Create %s namespace", randomNamespace))
+		err := namespaces.Create(randomNamespace, globalhelper.GetAPIClient())
 		Expect(err).ToNot(HaveOccurred())
 
-		err = namespaces.Clean(tsparams.AdditionalNetworkingNamespace, globalhelper.GetAPIClient())
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Remove reports from report directory")
-		err = globalhelper.RemoveContentsFromReportDir()
-		Expect(err).ToNot(HaveOccurred())
+		By("Override default report directory")
+		origReportDir = globalhelper.GetConfiguration().General.TnfReportDir
+		reportDir := origReportDir + "/" + randomNamespace
+		globalhelper.OverrideReportDir(reportDir)
 
 		By("Ensure all nodes are labeled with 'worker-cnf' label")
 		err = nodes.EnsureAllNodesAreLabeled(globalhelper.GetAPIClient().CoreV1Interface, configSuite.General.CnfNodeLabel)
@@ -52,23 +45,23 @@ var _ = Describe("Networking dual-stack-service,", func() {
 	})
 
 	AfterEach(func() {
-		By("Clean namespaces after each test")
-		err := namespaces.Clean(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
+		By("Remove networking test namespaces")
+		err := namespaces.DeleteAndWait(
+			globalhelper.GetAPIClient().CoreV1Interface,
+			randomNamespace,
+			tsparams.WaitingTime,
+		)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = namespaces.Clean(tsparams.AdditionalNetworkingNamespace, globalhelper.GetAPIClient())
-		Expect(err).ToNot(HaveOccurred())
-
-		By("Remove reports from report directory")
-		err = globalhelper.RemoveContentsFromReportDir()
-		Expect(err).ToNot(HaveOccurred())
+		By("Restore default report directory")
+		globalhelper.GetConfiguration().General.TnfReportDir = origReportDir
 	})
 
 	// 62506
 	It("service with ipFamilyPolicy SingleStack and ip version ipv4 [negative]", func() {
 
 		By("Define and create service")
-		err := tshelper.DefineAndCreateServiceOnCluster("testservice", 3022, 3022, false, false,
+		err := tshelper.DefineAndCreateServiceOnCluster("testservice1", randomNamespace, 3022, 3022, false, false,
 			[]corev1.IPFamily{"IPv4"}, "SingleStack")
 		Expect(err).ToNot(HaveOccurred())
 
@@ -89,7 +82,8 @@ var _ = Describe("Networking dual-stack-service,", func() {
 	It("service with ipFamilyPolicy PreferDualStack and zero ClusterIPs [negative]", func() {
 
 		By("Define and create service")
-		err := tshelper.DefineAndCreateServiceOnCluster("testservice", 3022, 3022, false, true, []corev1.IPFamily{"IPv4"}, "PreferDualStack")
+		err := tshelper.DefineAndCreateServiceOnCluster("testservice2", randomNamespace, 3023, 3023,
+			false, true, []corev1.IPFamily{"IPv4"}, "PreferDualStack")
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Start tests")
@@ -111,7 +105,8 @@ var _ = Describe("Networking dual-stack-service,", func() {
 		func() {
 
 			By("Define and create service")
-			err := tshelper.DefineAndCreateServiceOnCluster("testservice", 3022, 3022, false, false, []corev1.IPFamily{"IPv4"}, "")
+			err := tshelper.DefineAndCreateServiceOnCluster("testservice3", randomNamespace, 3024,
+				3024, false, false, []corev1.IPFamily{"IPv4"}, "")
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Start tests")

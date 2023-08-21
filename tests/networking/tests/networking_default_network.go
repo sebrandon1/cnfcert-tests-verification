@@ -26,21 +26,33 @@ var _ = Describe("Networking custom namespace, custom deployment,", func() {
 		glog.Fatal(fmt.Errorf("can not load config file: %w", err))
 	}
 
+	var randomNamespace string
+	var origReportDir string
+
 	execute.BeforeAll(func() {
-		By("Clean namespace before all tests")
-		err = namespaces.Clean(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
-		Expect(err).ToNot(HaveOccurred())
-		err = os.Setenv(globalparameters.PartnerNamespaceEnvVarName, tsparams.TestNetworkingNameSpace)
+		err = os.Setenv(globalparameters.PartnerNamespaceEnvVarName, randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	BeforeEach(func() {
-		By("Clean namespace before each test")
-		err := namespaces.Clean(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
+		randomNamespace = tsparams.TestNetworkingNameSpace + "-" + globalhelper.GenerateRandomString(10)
+
+		By(fmt.Sprintf("Create %s namespace", randomNamespace))
+		err := namespaces.Create(randomNamespace, globalhelper.GetAPIClient())
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Remove reports from report directory")
-		err = globalhelper.RemoveContentsFromReportDir()
+		By("Override default report directory")
+		origReportDir = globalhelper.GetConfiguration().General.TnfReportDir
+		reportDir := origReportDir + "/" + randomNamespace
+		globalhelper.OverrideReportDir(reportDir)
+
+		By("Define TNF config file")
+		err = globalhelper.DefineTnfConfig(
+			[]string{randomNamespace},
+			[]string{tsparams.TestPodLabel},
+			[]string{},
+			[]string{},
+			[]string{})
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Ensure all nodes are labeled with 'worker-cnf' label")
@@ -49,19 +61,22 @@ var _ = Describe("Networking custom namespace, custom deployment,", func() {
 	})
 
 	AfterEach(func() {
-		By("Remove reports from report directory")
-		err = globalhelper.RemoveContentsFromReportDir()
+		By("Remove networking test namespaces")
+		err := namespaces.DeleteAndWait(
+			globalhelper.GetAPIClient().CoreV1Interface,
+			randomNamespace,
+			tsparams.WaitingTime,
+		)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Clean namespace after each test")
-		err = namespaces.Clean(tsparams.TestNetworkingNameSpace, globalhelper.GetAPIClient())
-		Expect(err).ToNot(HaveOccurred())
+		By("Restore default report directory")
+		globalhelper.GetConfiguration().General.TnfReportDir = origReportDir
 	})
 
 	// 45440
 	It("3 custom pods on Default network networking-icmpv4-connectivity", func() {
 		By("Define deployment and create it on cluster")
-		err = tshelper.DefineAndCreateDeploymentOnCluster(3)
+		err = tshelper.DefineAndCreateDeploymentOnCluster(3, randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Start tests")
@@ -80,11 +95,11 @@ var _ = Describe("Networking custom namespace, custom deployment,", func() {
 	// 45441
 	It("custom daemonset, 4 custom pods on Default network", func() {
 		By("Define deployment and create it on cluster")
-		err = tshelper.DefineAndCreateDeploymentOnCluster(2)
+		err = tshelper.DefineAndCreateDeploymentOnCluster(2, randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Define daemonSet")
-		daemonSet := daemonset.DefineDaemonSet(tsparams.TestNetworkingNameSpace, configSuite.General.TestImage,
+		daemonSet := daemonset.DefineDaemonSet(randomNamespace, configSuite.General.TestImage,
 			tsparams.TestDeploymentLabels, "daemonsetnetworkingput")
 		daemonset.RedefineDaemonSetWithNodeSelector(daemonSet, map[string]string{configSuite.General.CnfNodeLabel: ""})
 
@@ -109,11 +124,11 @@ var _ = Describe("Networking custom namespace, custom deployment,", func() {
 	It("3 custom pods on Default network networking-icmpv4-connectivity fail when "+
 		"one pod is disconnected [negative]", func() {
 		By("Define deployment and create it on cluster")
-		err = tshelper.DefineAndCreatePrivilegedDeploymentOnCluster(2)
+		err = tshelper.DefineAndCreatePrivilegedDeploymentOnCluster(2, randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Close communication between deployment pods")
-		podsList, err := globalhelper.GetListOfPodsInNamespace(tsparams.TestNetworkingNameSpace)
+		podsList, err := globalhelper.GetListOfPodsInNamespace(randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		for index := range podsList.Items {
@@ -141,12 +156,12 @@ var _ = Describe("Networking custom namespace, custom deployment,", func() {
 	It("2 custom pods on Default network networking-icmpv4-connectivity skip when label "+
 		"test-network-function.com/skip_connectivity_tests is set in deployment [skip]", func() {
 		By("Define deployment and create it on cluster")
-		err = tshelper.DefineAndCreateDeploymentWithSkippedLabelOnCluster(2)
+		err = tshelper.DefineAndCreateDeploymentWithSkippedLabelOnCluster(2, randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Remove ping binary from test pod")
 		err = tshelper.ExecCmdOnOnePodInNamespace(
-			[]string{"rm", "-rf", "/usr/bin/ping", "/usr/sbin/ping"})
+			[]string{"rm", "-rf", "/usr/bin/ping", "/usr/sbin/ping"}, randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Start tests")
@@ -166,16 +181,16 @@ var _ = Describe("Networking custom namespace, custom deployment,", func() {
 	It("custom daemonset, 4 custom pods on Default network networking-icmpv4-connectivity pass when label "+
 		"test-network-function.com/skip_connectivity_tests is set in deployment only", func() {
 		By("Define deployment and create it on cluster")
-		err = tshelper.DefineAndCreateDeploymentWithSkippedLabelOnCluster(2)
+		err = tshelper.DefineAndCreateDeploymentWithSkippedLabelOnCluster(2, randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Remove ping binary from test pod")
 		err = tshelper.ExecCmdOnAllPodInNamespace(
-			[]string{"rm", "-rf", "/usr/bin/ping", "/usr/sbin/ping"})
+			[]string{"rm", "-rf", "/usr/bin/ping", "/usr/sbin/ping"}, randomNamespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Define daemonSet")
-		daemonSet := daemonset.DefineDaemonSet(tsparams.TestNetworkingNameSpace, configSuite.General.TestImage,
+		daemonSet := daemonset.DefineDaemonSet(randomNamespace, configSuite.General.TestImage,
 			tsparams.TestDeploymentLabels, "daemonsetnetworkingput")
 		daemonset.RedefineDaemonSetWithNodeSelector(daemonSet, map[string]string{configSuite.General.CnfNodeLabel: ""})
 
