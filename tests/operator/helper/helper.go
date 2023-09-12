@@ -15,13 +15,13 @@ import (
 	utils "github.com/test-network-function/cnfcert-tests-verification/tests/utils/operator"
 )
 
-func DeployTestOperatorGroup() error {
+func DeployTestOperatorGroup(namespace string) error {
 	if globalhelper.IsOperatorGroupInstalled(tsparams.OperatorGroupName,
-		tsparams.OperatorNamespace) != nil {
-		return globalhelper.DeployOperatorGroup(tsparams.OperatorNamespace,
+		namespace) != nil {
+		return globalhelper.DeployOperatorGroup(namespace,
 			utils.DefineOperatorGroup(tsparams.OperatorGroupName,
-				tsparams.OperatorNamespace,
-				[]string{tsparams.OperatorNamespace}),
+				namespace,
+				[]string{namespace}),
 		)
 	}
 
