@@ -6,7 +6,7 @@
 NAMESPACE_STRINGS_TO_GREP=(accesscontrol ac-test ac-rq-test cr-scale-operator-system my-ns affiliated lifecycle manageability networking net-tests observability operator-ns performance platform-alteration)
 
 for NS in "${NAMESPACE_STRINGS_TO_GREP[@]}"; do
-	for NAMESPACE in $(oc get namespaces | grep "$NS" | awk '{print $1}'); do
+	for NAMESPACE in $(oc get namespaces | grep "$NS" | grep -v openshift-operator-lifecycle-manager | awk '{print $1}'); do
 		echo "Deleting namespace $NAMESPACE"
 		oc delete namespace "$NAMESPACE" --ignore-not-found=true
 	done
