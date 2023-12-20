@@ -113,6 +113,7 @@ func GetCsvByPrefix(prefixCsvName string, namespace string) (*v1alpha1.ClusterSe
 	for _, csv := range csvs.Items {
 		if strings.Contains(csv.Name, prefixCsvName) {
 			neededCSV = csv
+			break
 		}
 	}
 
