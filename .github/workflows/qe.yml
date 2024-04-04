@@ -13,8 +13,39 @@ env:
   TEST_REPO: test-network-function/cnf-certification-test
 
 jobs:
+  # Build the image used for testing first, then pass the reference to the QE tests.
+  # This saves time and resources by not building the image in each QE suite.
+  build-image-for-qe:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clone the cnf-certification-test repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TEST_REPO }}
+          path: cnf-certification-test
+          ref: main
+
+      - name: Setup docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build temporary image tag for this PR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./cnf-certification-test/Dockerfile
+          tags: quay.io/testnetworkfunction/cnf-certification-test:localtest
+          outputs: type=docker,dest=/tmp/testimage.tar
+          
+      - name: Store image as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: testimage
+          path: /tmp/testimage.tar
+
   qe-testing:
     runs-on: ubuntu-22.04
+    needs: build-image-for-qe
+    if: needs.build-image-for-qe.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -91,6 +122,19 @@ jobs:
           sudo systemctl restart docker
           sudo ls -la /mnt/docker-storage
 
+      # Download the image from the artifact and load it into the docker daemon.
+      - name: Setup docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download image from artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: testimage
+          path: /tmp
+
+      - name: Load image into docker
+        run: docker load --input /tmp/testimage.tar
+
       - name: Create `local-test-infra` OpenShift resources
         run: make rebuild-cluster
         working-directory: cnf-certification-test-partner
@@ -106,24 +150,10 @@ jobs:
         run: ./scripts/wait-for-all-pods-running.sh
         working-directory: cnf-certification-test-partner
 
-      - name: Clone the cnf-certification-test repository
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.TEST_REPO }}
-          path: cnf-certification-test
-          ref: main
-
       - name: Extract dependent Pull Requests
         uses: depends-on/depends-on-action@main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build the `cnf-certification-test` image
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 90
-          max_attempts: 3
-          command: cd cnf-certification-test; make build-image-local # quay.io/testnetworkfunction/cnf-certification-test:localtest
 
       - name: Run the tests
         uses: nick-fields/retry@v3
