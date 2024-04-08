@@ -55,11 +55,12 @@ var (
 	CommunityOperatorGroup             = "community-operators"
 	OperatorSourceNamespace            = "openshift-marketplace"
 	OperatorLabel                      = map[string]string{"test-network-function.com/operator": "target"}
-	UncertifiedOperatorPrefixFalcon    = "falcon-operator"
+	UncertifiedOperatorPrefixCockroach = "cockroachdb"
 	CertifiedOperatorPrefixFederatorai = "federatorai"
-	CertifiedOperatorFullFederatorai   = "federatorai.v4.7.1-1"
-	CertifiedOperatorPrefixInstana     = "instana-agent-operator"
-	CertifiedOperatorFullInstana       = "instana-agent-operator.v2.0.4"
-	UncertifiedOperatorPrefixSriov     = "sriov-fec"
-	UncertifiedOperatorFullSriov       = "sriov-fec.v1.2.1"
+	// CertifiedOperatorFullFederatorai   = "federatorai.v4.7.1-1"
+	CertifiedOperatorFullFederatorai = ""
+	CertifiedOperatorPrefixInstana   = "instana-agent-operator"
+	CertifiedOperatorFullInstana     = "instana-agent-operator.v2.0.4"
+	UncertifiedOperatorPrefixSriov   = "sriov-fec"
+	UncertifiedOperatorFullSriov     = "sriov-fec.v1.2.1"
 )
