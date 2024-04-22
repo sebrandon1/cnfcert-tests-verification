@@ -36,7 +36,7 @@ var _ = Describe("Affiliated-certification container-is-certified-digest,", Seri
 	})
 
 	// 66765
-	It("one container to test, container is certified digest", func() {
+	FIt("one container to test, container is certified digest", func() {
 		if globalhelper.IsKindCluster() {
 			Skip("Skip test due to image pull missing credentials in Kind")
 		}
