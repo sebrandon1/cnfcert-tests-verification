@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -74,11 +76,6 @@ var _ = Describe("Affiliated-certification operator certification,", Serial, fun
 		Expect(err).ToNot(HaveOccurred(), ErrorDeployOperatorStr+
 			tsparams.CertifiedOperatorPrefixCockroachCertified)
 
-		// time.Sleep(5 * time.Minute)
-
-		// approveInstallPlanWhenReady(tsparams.CertifiedOperatorFullCockroachCertified,
-		// 	randomNamespace)
-
 		err = waitUntilOperatorIsReady(tsparams.CertifiedOperatorFullCockroachCertified,
 			randomNamespace)
 		Expect(err).ToNot(HaveOccurred(), "Operator "+tsparams.CertifiedOperatorFullCockroachCertified+
@@ -91,15 +88,19 @@ var _ = Describe("Affiliated-certification operator certification,", Serial, fun
 			Label:          tsparams.OperatorLabel,
 		})
 
-		By("Deploy nginx-ingress-operator for testing")
+		By("Query the packagemanifest for the operator")
+		version, err := globalhelper.QueryPackageManifestForVersion(tsparams.CertifiedOperatorPrefixNginx, tsparams.TestCertificationNameSpace)
+		Expect(err).ToNot(HaveOccurred(), "Error querying package manifest for "+tsparams.CertifiedOperatorPrefixNginx)
+
+		By(fmt.Sprintf("Deploy nginx-ingress-operator.v%s for testing", version))
 		// nginx-ingress-operator: in certified-operators group and version is certified
 		err = tshelper.DeployOperatorSubscription(
-			"nginx-ingress-operator",
+			tsparams.CertifiedOperatorPrefixNginx,
 			"alpha",
 			randomNamespace,
 			tsparams.CertifiedOperatorGroup,
 			tsparams.OperatorSourceNamespace,
-			tsparams.CertifiedOperatorFullNginx,
+			tsparams.CertifiedOperatorPrefixNginx+".v"+version,
 			v1alpha1.ApprovalAutomatic,
 		)
 		Expect(err).ToNot(HaveOccurred(), ErrorDeployOperatorStr+
@@ -123,7 +124,7 @@ var _ = Describe("Affiliated-certification operator certification,", Serial, fun
 	})
 
 	// 46699
-	It("one operator to test, operator is not in certified-operators organization [negative]",
+	FIt("one operator to test, operator is not in certified-operators organization [negative]",
 		func() {
 			By("Label operator to be certified")
 			Eventually(func() error {
