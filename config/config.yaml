@@ -4,13 +4,13 @@ general:
   cnf_worker_label: node-role.kubernetes.io/worker-cnf
   worker_label: node-role.kubernetes.io/worker
   verification_log_level: 4
-  test_image: quay.io/testnetworkfunction/cnf-test-partner
+  test_image: quay.io/testnetworkfunction/k8s-best-practices-debug
   certsuite_entry_point_binary: certsuite
   use_binary: false
   certsuite_config_dir: /tmp/certsuite_config
   certsuite_report_dir: /tmp/certsuite_report
   docker_config_dir: /home/runner/.docker
-  certsuite_image: quay.io/testnetworkfunction/cnf-certification-test
+  certsuite_image: quay.io/testnetworkfunction/k8s-best-practices-certsuite
   certsuite_image_tag: latest
   disable_intrusive_tests: false
   container_engine: docker
