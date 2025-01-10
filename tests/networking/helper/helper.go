@@ -421,7 +421,8 @@ func DefineDeploymentWithContainerPorts(name, namespace string,
 	}
 
 	deploymentStruct := deployment.DefineDeployment(name, namespace,
-		globalhelper.GetConfiguration().General.TestImage, tsparams.TestDeploymentLabels)
+		globalhelper.GetConfiguration().General.TestImage, 
+		tsparams.TestDeploymentLabels)
 
 	globalhelper.AppendContainersToDeployment(deploymentStruct, len(ports)-1, globalhelper.GetConfiguration().General.TestImage)
 	deployment.RedefineWithReplicaNumber(deploymentStruct, replicaNumber)

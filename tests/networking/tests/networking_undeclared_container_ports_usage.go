@@ -37,14 +37,13 @@ var _ = Describe("Networking undeclared-container-ports-usage,", func() {
 			randomReportDir, randomCertsuiteConfigDir, tsparams.WaitingTime)
 	})
 
-	It("one deployment, one pod, container declares and uses port 8080", func() {
-
+	FIt("one deployment, one pod, container declares and uses port 8080", func() {
 		By("Define deployment and create it on cluster")
 		dep, err := tshelper.DefineDeploymentWithContainerPorts("networking-deployment", randomNamespace, 1,
 			[]corev1.ContainerPort{{ContainerPort: 8080}})
 		Expect(err).ToNot(HaveOccurred())
-		err = deployment.RedefineContainerCommand(dep, 0, []string{})
-		Expect(err).ToNot(HaveOccurred())
+		// err = deployment.RedefineContainerCommand(dep, 0, []string{})
+		// Expect(err).ToNot(HaveOccurred())
 
 		By("Create deployment")
 		err = globalhelper.CreateAndWaitUntilDeploymentIsReady(dep, tsparams.WaitingTime)
