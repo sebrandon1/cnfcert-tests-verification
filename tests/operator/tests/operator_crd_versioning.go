@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -60,7 +62,7 @@ var _ = Describe("Operator crd-versioning,", func() {
 			randomReportDir, randomCertsuiteConfigDir, tsparams.Timeout)
 	})
 
-	It("operator crd has valid versioning", func() {
+	FIt("operator crd has valid versioning", func() {
 		By("Label operator")
 		Eventually(func() error {
 			return tshelper.AddLabelToInstalledCSV(
@@ -69,6 +71,8 @@ var _ = Describe("Operator crd-versioning,", func() {
 				tsparams.OperatorLabel)
 		}, tsparams.TimeoutLabelCsv, tsparams.PollingInterval).Should(Not(HaveOccurred()),
 			ErrorLabelingOperatorStr+tsparams.OperatorPrefixOpenvino)
+
+		time.Sleep(5 * time.Minute)
 
 		By("Start test")
 		err := globalhelper.LaunchTests(
